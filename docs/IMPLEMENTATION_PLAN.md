@@ -396,10 +396,11 @@ recorded here rather than silently fixed:
   (one `[INFO]` about a missing icon).
 * `helm template` renders three variants: defaults, Phase 1, and
   `instana.enabled=true`.
-* 14 assertions, all passing: 0 `INSTANA_` variables, 0 `LoadBalancer`, web
+* 15 assertions, all passing: 0 `INSTANA_` variables, 0 `LoadBalancer`, web
   Service `ClusterIP`, Ingress on `robot-shop.local`, 8 readiness probes, 12
   Deployments, load generator present, 1Gi redis PVC, opt-in features absent by
-  default, and 5 `INSTANA_AGENT_HOST` entries restored when the flag flips on.
+  default, and — with the flag flipped on — 5 `INSTANA_AGENT_HOST` entries plus
+  1 `INSTANA_EUM_KEY`.
 
 That last assertion is the important one: it proves the gate is a switch, not a
 deletion.

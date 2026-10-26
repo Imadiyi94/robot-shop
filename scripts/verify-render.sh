@@ -30,7 +30,7 @@ helm lint --strict "$CHART" -f "$CHART/values-phase1.yaml"
 echo "== render =="
 helm template robot-shop "$CHART" --namespace robot-shop -f "$CHART/values-phase1.yaml" >"$OUT/phase1.yaml"
 helm template robot-shop "$CHART" --namespace robot-shop >"$OUT/defaults.yaml"
-helm template robot-shop "$CHART" --namespace robot-shop --set instana.enabled=true >"$OUT/instana-on.yaml"
+helm template robot-shop "$CHART" --namespace robot-shop --set instana.enabled=true --set eum.key=probe-key >"$OUT/instana-on.yaml"
 echo "  wrote $OUT/{phase1,defaults,instana-on}.yaml"
 
 echo "== Phase 1 render assertions =="
@@ -50,6 +50,7 @@ check "no loadgen by default"       0 "$(count '^  name: load$' "$OUT/defaults.y
 
 echo "== gating assertion: instana.enabled=true must restore agent env =="
 check "INSTANA_AGENT_HOST x5"       5 "$(count 'INSTANA_AGENT_HOST' "$OUT/instana-on.yaml")"
+check "INSTANA_EUM_KEY restored"    1 "$(count 'INSTANA_EUM_KEY' "$OUT/instana-on.yaml")"
 
 echo
 if [ "$failures" -ne 0 ]; then
