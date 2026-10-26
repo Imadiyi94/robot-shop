@@ -42,6 +42,7 @@ check "readiness probes"            8 "$(count 'readinessProbe' "$OUT/phase1.yam
 check "Deployments rendered"       12 "$(count '^kind: Deployment' "$OUT/phase1.yaml")"
 check "load generator present"      1 "$(count '^  name: load$' "$OUT/phase1.yaml")"
 check "redis PVC size"              1 "$(count 'storage: 1Gi' "$OUT/phase1.yaml")"
+check "digest-pinned images"       13 "$(count 'image: .*@sha256:[a-f0-9]\{64\}' "$OUT/phase1.yaml")"
 
 echo "== default render assertions (opt-in features stay off) =="
 check "no INSTANA_ by default"      0 "$(count 'INSTANA_' "$OUT/defaults.yaml")"
