@@ -135,21 +135,28 @@ PRD 3.1 / Deliverable 1.
 | --- | --- |
 | `kubernetes_namespace_v1` | name `robot-shop`; labels `app.kubernetes.io/part-of=robot-shop`, `environment=local` |
 | Pod Security | enforce **baseline**, audit/warn `restricted` (upstream images run as root; `restricted` would block them) |
-| `kubernetes_resource_quota_v1` | `requests.cpu=4`, `requests.memory=6Gi`, `limits.cpu=8`, `limits.memory=10Gi`, `pods=40`, `services=20`, `pvc=10` |
-| `kubernetes_limit_range_v1` | default request 100m/128Mi, default limit 500m/1Gi, max 2 CPU/2Gi |
-| `kubernetes_network_policy_v1` | default-deny; allow DNS; allow intra-namespace; allow ingress from `ingress-nginx`; allow egress 443 (payment → gateway) |
+| `kubernetes_resource_quota_v1` | `requests.cpu=4`, `requests.memory=5Gi`, `limits.cpu=8`, `limits.memory=8Gi`, `pods=35`, `services=20`, `configmaps=20`, `secrets=20`, `pvc=5` |
+| `kubernetes_limit_range_v1` | default request 100m/128Mi, default limit 500m/512Mi, max 2 CPU/2Gi |
+| `kubernetes_network_policy_v1` | default-deny (ingress + egress); allow DNS; allow intra-namespace; allow ingress from `ingress-nginx` to `web:8080` only; allow `payment` egress on 443 to public space |
 
-Quota rationale (chart defaults):
+Quota rationale (chart defaults, as built in Step 3):
 
 | Tier | Requests | Limits |
 | --- | --- | --- |
-| 8 app services | 800m / 400Mi | 1600m / 800Mi |
+| web, catalogue, cart, payment, user, ratings, dispatch (7 × 100m/50Mi) | 700m / 350Mi | 1400m / 700Mi |
+| shipping (Java) | 100m / **500Mi** | 200m / **1000Mi** |
 | mongodb | 100m / 100Mi | 200m / 200Mi |
 | mysql | 100m / **700Mi** | 200m / **1024Mi** |
-| rabbitmq | 100m / 100Mi | 200m / 200Mi |
+| rabbitmq | 100m / 256Mi | 200m / 512Mi |
 | redis | 100m / 50Mi | 200m / 100Mi |
 | load | 100m / 100Mi | 200m / 200Mi |
-| **total** | **1.3 CPU / 1.45Gi** | **2.6 CPU / 2.5Gi** |
+| **steady total (13 pods)** | **1.3 CPU / 2.0Gi** | **2.6 CPU / 3.55Gi** |
+| **rollout peak (+12 surge pods)** | **~2.5 CPU / 4.1Gi** | **~5.0 CPU / 7.3Gi** |
+
+The quota is sized to the **rollout peak**, not the steady state: a `helm upgrade`
+rolls all 12 Deployments at once, and a quota at steady-state totals would reject
+the surge pods mid-upgrade. 4 CPU / 5Gi requests and 8 CPU / 8Gi limits leave
+headroom above the peak without letting this namespace starve `voting-app`.
 
 ### 4.2 Vendored chart + `instana.enabled=false`
 
@@ -415,3 +422,56 @@ deletion.
   Phase 1, or by adding `kubeconform` to CI.
 * **PSP templates left untouched** — `policy/v1beta1` is unrenderable on
   Kubernetes ≥ 1.25, so `psp.enabled` must stay `false` (PSA `baseline` covers it).
+
+---
+
+## 10. Step 3 outcome — namespace module (2026-10-26)
+
+Written: `terraform/{main,variables,outputs}.tf` and
+`terraform/modules/namespace/{main,variables,outputs}.tf`.
+
+| Check | Result |
+| --- | --- |
+| `terraform init` | success (provider 2.38.0, offline mirror) |
+| `terraform validate` | **Success** |
+| `terraform fmt -check -recursive` | clean, exit 0 |
+| `terraform plan` | **8 to add, 0 to change, 0 to destroy** |
+| Resources planned | 1 Namespace, 1 ResourceQuota, 1 LimitRange, 5 NetworkPolicies |
+
+**Zero-write proof:** `kubectl get namespace robot-shop` returned `NotFound` both
+immediately before and immediately after `terraform plan`. The plan file
+(`dist/phase1.tfplan`) is local, and `terraform plan` performs reads only.
+
+### NetworkPolicy enforcement gap — read this before claiming isolation
+
+The inherited cluster runs **kindnetd `v20240202`**, which does not implement
+NetworkPolicy. The five policies are created and syntactically valid, but they
+are **not enforced**: nothing currently restricts pod-to-pod traffic in
+`robot-shop`. This is not a regression — `voting-app`'s three Capstone 1 policies
+are equally inert.
+
+Authoring them is still the right call: the PRD asks for the guardrail as code,
+and they take effect the moment a policy-capable CNI is installed. Two traps are
+recorded for whoever does that:
+
+1. **Kubelet probes break.** Under default-deny ingress, readiness/liveness
+   probes are denied (they originate from the node IP), so every pod would go
+   `NotReady`. An `allow-kubelet-probes` policy on the node CIDR is mandatory in
+   the same change.
+2. **Prometheus scraping breaks.** Phase 2 must add an `allow-monitoring-scrape`
+   policy from the `monitoring` namespace to the app ports, or every target will
+   read `down`.
+
+### Offline provider install (workstation-specific)
+
+`registry.terraform.io` does not resolve on this network, so a plain
+`terraform init` fails with `no such host`. Provider 2.38.0 is served from
+Capstone 1's existing cache through a `filesystem_mirror` CLI config
+(`TF_CLI_CONFIG_FILE`). CI uses the public registry normally. This is an
+environment quirk, not a configuration defect — see `terraform/README.md`.
+
+### Phase 2 prerequisite
+
+ServiceMonitors select pods by label and scrape by **named port**. `cart` and
+`payment` already expose `port: http`, so no Service change is needed. The
+`monitoring` namespace and its NetworkPolicy allowance are Phase 2 work.
