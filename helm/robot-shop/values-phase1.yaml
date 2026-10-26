@@ -1,0 +1,45 @@
+# Phase 1 overlay for the vendored robot-shop chart.
+#
+# Purpose: dedicated namespace, Instana hard-off, ClusterIP + Ingress exposure
+# through the shared ingress-nginx controller, and continuous synthetic load.
+#
+# Usage:
+#   helm upgrade --install robot-shop helm/robot-shop \
+#     --namespace robot-shop -f helm/robot-shop/values-phase1.yaml
+#
+# Images are still `latest` here on purpose: digest pinning happens in Step 4
+# and is recorded in docs/IMAGE_PINS.md, then overridden via --set.
+
+# PATCH 1 - no Instana agent, no EUM beacons.
+instana:
+  enabled: false
+
+image:
+  repo: robotshop
+  version: latest
+  pullPolicy: IfNotPresent
+
+# Never NodePort/LoadBalancer: the shared controller already owns 30080.
+nodeport: false
+
+# PATCH 3 - reach the storefront at http://robot-shop.local:30080
+ingress:
+  enabled: true
+  className: nginx
+  host: robot-shop.local
+  path: /
+
+# PATCH 4 - continuous traffic so Phase 2 dashboards have signal.
+loadgen:
+  enabled: true
+  host: http://web:8080/
+  clients: 15
+  silent: true
+  error: true
+
+redis:
+  storageClassName: standard
+
+web:
+  service:
+    type: ClusterIP

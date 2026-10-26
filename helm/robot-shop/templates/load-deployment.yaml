@@ -1,0 +1,37 @@
+# PATCH 4 - Synthetic load generator.
+# New file, derived from upstream K8s/load-deployment.yaml (reference copy at
+# docs/upstream/load-deployment.yaml). Gated on loadgen.enabled so the
+# application can be deployed without continuous traffic.
+{{- if .Values.loadgen.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load
+  labels:
+    service: load
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: load
+  template:
+    metadata:
+      labels:
+        service: load
+    spec:
+      containers:
+        - name: load
+          image: {{ .Values.image.repo }}/rs-load:{{ .Values.image.version }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: HOST
+              value: {{ .Values.loadgen.host | quote }}
+            - name: NUM_CLIENTS
+              value: {{ .Values.loadgen.clients | quote }}
+            - name: SILENT
+              value: {{ ternary "1" "0" .Values.loadgen.silent | quote }}
+            - name: ERROR
+              value: {{ ternary "1" "0" .Values.loadgen.error | quote }}
+          resources:
+            {{- toYaml .Values.loadgen.resources | nindent 12 }}
+{{- end }}

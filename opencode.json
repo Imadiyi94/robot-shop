@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai",
+  "workspace": {
+    "allow_external_directories": true,
+    "external_references": [
+      {
+        "name": "capstone1_infrastructure",
+        "path": "../example-voting-app/terraform",
+        "description": "Read-only access to extract the existing Kind cluster context."
+      }
+    ]
+  }
+}

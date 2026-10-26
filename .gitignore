@@ -1,0 +1,25 @@
+# Rendered manifests and validation output (regenerate with scripts/verify-render.sh)
+dist/
+
+# Terraform state and local overrides
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Secrets - never committed (decision D5)
+secrets/
+*.secret.yaml
+values-secret.yaml
+.env
+
+# Inherited kubeconfig copies; the canonical one lives in Capstone 1
+kubeconfig*
+*.kubeconfig
+
+# OS noise
+.DS_Store
+Thumbs.db

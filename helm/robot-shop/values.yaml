@@ -1,0 +1,116 @@
+# =====================================================================
+# Stan's Robot Shop - vendored values
+#
+# Base: instana/robot-shop @ 55292e2199f2fb00a165b1f7d3045fe7f8922038
+#       (K8s/helm/values.yaml)
+#
+# Every change against upstream is prefixed with "PATCH <n>" and listed in
+# UPSTREAM.md. Keep the diff narrow so future upstream comparisons stay easy.
+# =====================================================================
+
+# Registry and repository for Docker images
+# Default is docker/robotshop/image:latest
+image:
+  repo: robotshop
+  version: latest
+  pullPolicy: IfNotPresent
+
+# PATCH 1 - Instana deactivation
+# Upstream hard-codes INSTANA_AGENT_HOST / INSTANA_EUM_* in the workload
+# templates and offers no switch. This key gates every Instana surface in the
+# chart. Default false = vendor-free install.
+instana:
+  enabled: false
+
+# EUM configuration
+# Provide your key and set the endpoint.
+# Only rendered when instana.enabled is true (PATCH 1).
+eum:
+  key: null
+  url: https://eum-eu-west-1.instana.io
+  #url: https://eum-us-west-2.instana.io
+
+# Pod Security Policy
+psp:
+  enabled: false
+
+# For the mini ones minikube, minishift set to true
+nodeport: false
+
+# "special" Openshift. Set to true when deploying to any openshift flavour
+openshift: false
+
+ocCreateRoute: false
+
+# PATCH 3 - Ingress exposure
+# Kind has no cloud load balancer, so `web` is a ClusterIP reached through the
+# shared ingress-nginx controller. Set enabled=false to omit the Ingress
+# entirely (upstream behaviour, minus the LoadBalancer Service).
+ingress:
+  enabled: false
+  className: nginx
+  host: robot-shop.local
+  path: /
+  annotations: {}
+
+# PATCH 4 - Synthetic load generator
+# Mirrors upstream K8s/load-deployment.yaml (kept in docs/upstream/ for
+# provenance). Gated so tests and demos can run without continuous traffic.
+loadgen:
+  enabled: false
+  host: http://web:8080/
+  clients: 15
+  silent: true
+  # ERROR=1 tells the generator to keep going when a request fails.
+  error: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
+
+######################################
+# Affinities for individual workloads
+# set in the following way:
+# <workload>:
+#   affinity: {}
+#   nodeSelector: {}
+#   tolerations: []
+######################################
+
+cart: {}
+
+catalogue: {}
+
+dispatch: {}
+
+mongodb: {}
+
+mysql: {}
+
+payment:
+  # Alternative payment gateway URL
+  # Default is https://www.paypal.com
+  gateway: null
+  #gateway: https://www.worldpay.com
+
+rabbitmq: {}
+
+ratings: {}
+
+redis:
+  # Storage class to use with redis statefulset.
+  storageClassName: standard
+
+shipping: {}
+
+user: {}
+
+web:
+  # PATCH 3 - ClusterIP by default. Upstream defaults to LoadBalancer, which
+  # never receives an address on Kind. Set type: LoadBalancer on a cloud
+  # provider to restore upstream behaviour.
+  service:
+    type: ClusterIP
