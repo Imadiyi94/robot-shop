@@ -58,8 +58,18 @@ foreach ($pin in $pins) {
     $digestRef = "$repo@$($pin.digest)"
 
     foreach ($node in $nodes) {
+        # ctr tag fails if the target name already exists, so treat an existing
+        # digest ref as satisfied and re-check before failing.
+        $existing = docker exec $node ctr -n k8s.io images ls -q 2>&1
+        if ($existing -contains $digestRef) { continue }
+
         docker exec $node ctr -n k8s.io images tag $ref $digestRef 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "ctr tag failed on $node for $digestRef" }
+        if ($LASTEXITCODE -ne 0) {
+            $after = docker exec $node ctr -n k8s.io images ls -q 2>&1
+            if ($after -notcontains $digestRef) {
+                throw "ctr tag failed on $node for $digestRef"
+            }
+        }
     }
 }
 
