@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: load
-          image: {{ .Values.image.repo }}/rs-load:{{ .Values.image.version }}
+          image: {{ include "robot-shop.image" (dict "root" $ "name" "rs-load") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: HOST

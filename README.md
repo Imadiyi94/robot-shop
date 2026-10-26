@@ -27,9 +27,14 @@ helm/robot-shop/          vendored upstream chart (patched, see UPSTREAM.md)
   values-phase1.yaml      namespace-free overlay: Instana off, Ingress, loadgen
 terraform/                namespace, quota, network policy (Step 3)
 scripts/verify-render.sh  offline helm lint/template + rendered-output asserts
+scripts/pull-images.ps1   retrying Docker Hub puller; records digests
+scripts/load-images.ps1   loads images into every Kind node and tags by digest
 docs/IMPLEMENTATION_PLAN.md
+docs/IMAGE_PINS.md        image -> digest record with resolve date
 docs/upstream/            pristine upstream references kept for provenance
 ```
+
+Remote: <https://github.com/Imadiyi94/robot-shop>
 
 ## Validate (no cluster access)
 

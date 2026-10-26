@@ -19,7 +19,7 @@ spec:
       {{ end }}
       containers:
       - name: cart
-        image: {{ .Values.image.repo }}/rs-cart:{{ .Values.image.version }}
+        image: {{ include "robot-shop.image" (dict "root" $ "name" "rs-cart") }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         {{- if .Values.instana.enabled }}
         # PATCH 1: agent networking env, rendered only when instana.enabled.

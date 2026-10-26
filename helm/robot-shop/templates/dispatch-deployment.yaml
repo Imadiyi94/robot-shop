@@ -19,7 +19,7 @@ spec:
       {{ end }}
       containers:
       - name: dispatch
-        image: {{ .Values.image.repo }}/rs-dispatch:{{ .Values.image.version }}
+        image: {{ include "robot-shop.image" (dict "root" $ "name" "rs-dispatch") }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         {{- if .Values.instana.enabled }}
         env:

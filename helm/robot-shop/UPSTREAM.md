@@ -34,6 +34,7 @@ Every patch is marked with a `PATCH <n>` comment in the file it touches, so
 | **P3** | Ingress exposure. `web` Service type via `web.service.type` (default `ClusterIP`, `nodeport` still wins), plus a new `ingress.yaml` gated on `ingress.enabled`. | `values.yaml`, `web-service.yaml`, `ingress.yaml` (new) |
 | **P4** | Synthetic load generator at `loadgen.*`, gated on `loadgen.enabled`. Mirrors upstream `K8s/load-deployment.yaml` including `ERROR=1` so a failed request does not kill the run. | `values.yaml`, `load-deployment.yaml` (new) |
 | **P5** | Chart metadata: `apiVersion: v2` (upstream `v1` is legacy), `version: 1.2.0`, `appVersion: 1.1.0`, `sources:` and an `capstone2/upstream-commit` annotation so the vendor point is machine-readable. | `Chart.yaml` |
+| **P6** | Digest pinning (decision D7). New `robot-shop.image` helper renders `repo/name:tag@sha256:...` when `image.digests[<name>]` is set, and falls back to the plain tag otherwise. `redis` and `rabbitmq` images become configurable (`redis.image`, `rabbitmq.image`) because upstream hard-codes `redis:4.0.6` and `rabbitmq:3.7-management-alpine` in the templates. | `_helpers.tpl` (new), all 11 `rs-*` deployment templates, `redis-statefulset.yaml`, `rabbitmq-deployment.yaml`, `values.yaml` |
 
 ## Deliberately not patched
 
@@ -60,13 +61,16 @@ Every patch is marked with a `PATCH <n>` comment in the file it touches, so
   scrape `rabbitmq:15672`.
 * `web` renders **two** objects from one template file (Service + optional
   OpenShift Route); `ocCreateRoute` stays `false`.
-* Images are all `robotshop/rs-*:latest` plus `redis:4.0.6` — 13 references in
-  total. Digest pinning is deferred to Step 4 (decision D7).
+* Images are all `robotshop/rs-*:latest` plus `redis:4.0.6` and
+  `rabbitmq:3.7-management-alpine` — 13 references in total. The two
+  non-`robotshop` images were hard-coded in the templates until P6 made them
+  values-driven; digest pinning is applied per environment via
+  `values-phase1.yaml` and recorded in `docs/IMAGE_PINS.md`.
 
 ## Re-vendoring procedure
 
 1. Re-run the sparse clone against a new upstream commit.
-2. Copy `K8s/helm/*` over `helm/robot-shop/`, then re-apply P1-P5 (the `PATCH`
+2. Copy `K8s/helm/*` over `helm/robot-shop/`, then re-apply P1-P6 (the `PATCH`
    markers in the current files are the specification).
 3. Update the commit in this file and in `Chart.yaml`'s annotation.
 4. Run `bash scripts/verify-render.sh`; it fails if the Instana gating or probe

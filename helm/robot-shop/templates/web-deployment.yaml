@@ -19,7 +19,7 @@ spec:
       {{ end }}
       containers:
       - name: web
-        image: {{ .Values.image.repo }}/rs-web:{{ .Values.image.version }}
+        image: {{ include "robot-shop.image" (dict "root" $ "name" "rs-web") }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         {{- if and .Values.instana.enabled .Values.eum.key }}
         env:

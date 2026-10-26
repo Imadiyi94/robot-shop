@@ -19,7 +19,7 @@ spec:
       {{ end }}
       containers:
       - name: rabbitmq
-        image: rabbitmq:3.7-management-alpine
+        image: {{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}{{ with .Values.rabbitmq.image.digest }}@{{ . }}{{ end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: 5672

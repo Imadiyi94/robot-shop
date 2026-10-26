@@ -20,9 +20,15 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$OutputFile = (Join-Path $PSScriptRoot "..\dist\image-pins.json"),
+    [string]$OutputFile = "",
     [int]$MaxAttempts = 6
 )
+
+# $PSScriptRoot is not reliably populated inside a param() default on Windows
+# PowerShell 5.1, so resolve the default in the body instead.
+if ([string]::IsNullOrWhiteSpace($OutputFile)) {
+    $OutputFile = Join-Path $PSScriptRoot "..\dist\image-pins.json"
+}
 
 $images = @(
     "robotshop/rs-web:latest",
