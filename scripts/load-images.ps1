@@ -51,7 +51,21 @@ function Resolve-FullRef([string]$image) {
 foreach ($pin in $pins) {
     Write-Host "loading $($pin.image)"
     kind load docker-image $pin.image --name $ClusterName 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "kind load failed for $($pin.image)" }
+    if ($LASTEXITCODE -ne 0) {
+        # Docker 29 saves an OCI index whose child manifests are not all in the
+        # tarball, and `kind load` imports with --all-platforms, so containerd
+        # aborts with "content digest sha256:... not found". scripts/import-image.sh
+        # imports the same image with an explicit platform, which resolves.
+        Write-Host "     kind load failed, falling back to platform-pinned import"
+        $bash = (Get-Command bash -ErrorAction SilentlyContinue).Source
+        if (-not $bash) { throw "kind load failed for $($pin.image) and bash is unavailable for the fallback import" }
+        Push-Location (Join-Path $PSScriptRoot "..")
+        try {
+            & $bash "scripts/import-image.sh" $pin.image $pin.digest
+            if ($LASTEXITCODE -ne 0) { throw "import-image.sh failed for $($pin.image)" }
+        }
+        finally { Pop-Location }
+    }
 
     $ref = Resolve-FullRef $pin.image
     $repo = ($ref -split ":")[0]

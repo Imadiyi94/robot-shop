@@ -1,0 +1,42 @@
+== rollout ==
+  ok    deployment.apps/cart available
+  ok    deployment.apps/catalogue available
+  ok    deployment.apps/dispatch available
+  ok    deployment.apps/load available
+  ok    deployment.apps/mongodb available
+  ok    deployment.apps/mysql available
+  ok    deployment.apps/payment available
+  ok    deployment.apps/rabbitmq available
+  ok    deployment.apps/ratings available
+  ok    deployment.apps/shipping available
+  ok    deployment.apps/user available
+  ok    deployment.apps/web available
+  ok    statefulset/redis ready
+
+== pods ==
+  ok    pods Running -> 13
+  ok    pods not Running -> 0
+
+== images pinned by digest ==
+  ok    digest-pinned containers -> 13
+
+== Instana disabled ==
+  ok    INSTANA_ references -> 0
+
+== no load balancer ==
+  ok    LoadBalancer services -> 0
+
+== storefront over ingress ==
+  ok    HTTP status -> 200 via 172.30.208.1:30080
+        note: 'localhost' did not answer; probing 172.30.208.1 instead
+  ok    storefront content contains 'robot'
+
+== load generator ==
+  ok    load pod is producing log output
+        Starting load with 15 clients
+        Starting  clients for ever
+
+== PVC ==
+        data-redis-0   Bound   pvc-b88d119c-417e-4873-b48a-4abe7f81192e   1Gi   RWO   standard   <unset>   23m
+
+All Phase 1 checks passed.

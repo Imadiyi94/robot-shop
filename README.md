@@ -29,12 +29,32 @@ terraform/                namespace, quota, network policy (Step 3)
 scripts/verify-render.sh  offline helm lint/template + rendered-output asserts
 scripts/pull-images.ps1   retrying Docker Hub puller; records digests
 scripts/load-images.ps1   loads images into every Kind node and tags by digest
+scripts/import-image.sh   platform-pinned fallback when `kind load` fails
+scripts/verify-phase1.sh  live acceptance: rollout, pods, digests, ingress, load
 docs/IMPLEMENTATION_PLAN.md
 docs/IMAGE_PINS.md        image -> digest record with resolve date
+docs/phase1-verification.log  captured Phase 1 acceptance run
 docs/upstream/            pristine upstream references kept for provenance
 ```
 
 Remote: <https://github.com/Imadiyi94/robot-shop>
+
+## Phase 1 is live
+
+```bash
+export KUBECONFIG=../example-voting-app/terraform/kubeconfig-voting-app
+helm upgrade --install robot-shop helm/robot-shop -n robot-shop -f helm/robot-shop/values-phase1.yaml
+bash scripts/verify-phase1.sh
+```
+
+13 pods, all `Ready`, 0 restarts; storefront served through the shared
+ingress-nginx controller.
+
+> **`localhost:30080` may not answer on this workstation.** A stale `wslrelay`
+> process holds `127.0.0.1:30080` and drops connections, while Docker's `0.0.0.0`
+> binding on the host LAN address works. `verify-phase1.sh` probes several
+> addresses and prints which one answered. See
+> `docs/IMPLEMENTATION_PLAN.md` § 11. This affects Capstone 1 on the same port.
 
 ## Validate (no cluster access)
 
@@ -45,8 +65,9 @@ bash scripts/verify-render.sh
 The script runs `helm lint --strict` on both value sets, renders the manifests
 into `dist/`, then asserts the properties that matter: zero `INSTANA_`
 variables, no `LoadBalancer`, ClusterIP web Service, Ingress on
-`robot-shop.local`, 8 readiness probes, 12 Deployments, load generator present,
+`robot-shop.local`, 7 readiness probes, 12 Deployments, load generator present,
 and that flipping `instana.enabled=true` restores the agent environment.
+(7, not 8: dispatch is a queue consumer with no listener, so it cannot be probed.)
 
 ## Design notes
 

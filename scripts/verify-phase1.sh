@@ -52,10 +52,36 @@ check "LoadBalancer services" 0 "$lb"
 
 echo
 echo "== storefront over ingress =="
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $HOST" "http://localhost:$INGRESS_PORT/" || echo 000)
-check "HTTP status" 200 "$code"
-body=$(curl -s --max-time 15 -H "Host: $HOST" "http://localhost:$INGRESS_PORT/" | grep -c -i 'robot' || true)
-if [ "$body" -gt 0 ]; then pass "storefront content contains 'robot'"; else fail "storefront content unexpected"; fi
+# The request must go through the shared ingress-nginx controller, i.e. the
+# NodePort it owns. Which host address answers it is not always `localhost`:
+# on this workstation a stale WSL relay holds 127.0.0.1:30080 and accepts then
+# drops connections, while Docker's 0.0.0.0 binding on the LAN address works.
+# Try the candidates in order and report which one answered, so a genuine
+# routing failure stays distinguishable from a broken host port-forward.
+fetch() { curl -s --max-time 15 -H "Host: $HOST" "http://$1:$INGRESS_PORT$2"; }
+http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $HOST" "http://$1:$INGRESS_PORT$2"; }
+host_lan_ip() {
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -notlike '169.*' -and \$_.InterfaceAlias -notlike '*Loopback*' } | Select-Object -First 1).IPAddress" 2>/dev/null | tr -d '\r'
+  else
+    hostname -I 2>/dev/null | awk '{print $1}'
+  fi
+}
+
+addr=""
+for cand in ${INGRESS_ADDR:-} localhost 127.0.0.1 "$(host_lan_ip)"; do
+  [ -z "$cand" ] && continue
+  if [ "$(http_code "$cand" /)" = "200" ]; then addr="$cand"; break; fi
+done
+
+if [ -z "$addr" ]; then
+  fail "HTTP status -> no address answered on port $INGRESS_PORT (tried localhost, 127.0.0.1, LAN IP)"
+else
+  pass "HTTP status -> 200 via $addr:$INGRESS_PORT"
+  [ "$addr" = "localhost" ] || echo "        note: 'localhost' did not answer; probing $addr instead"
+fi
+body=$([ -n "$addr" ] && fetch "$addr" / | grep -c -i 'robot' || true)
+if [ "${body:-0}" -gt 0 ]; then pass "storefront content contains 'robot'"; else fail "storefront content unexpected"; fi
 
 echo
 echo "== load generator =="

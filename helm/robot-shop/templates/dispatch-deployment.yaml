@@ -29,15 +29,11 @@ spec:
               fieldRef:
                 fieldPath: status.hostIP
         {{- end }}
-        # PATCH 2: readiness probe (upstream has none). TCP only - no known
-        # health route on this image.
-        readinessProbe:
-          tcpSocket:
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 2
-          failureThreshold: 6
+        # PATCH 2: readiness probe (upstream has none).
+        # PATCH 8: removed. dispatch is a RabbitMQ consumer only - it never
+        # opens an HTTP listener, so a tcpSocket probe could never pass. Its
+        # own log "Rabbit MQ ready true" is the real readiness signal and it
+        # has no endpoint to probe, so readiness follows the container state.
         resources:
           limits:
             cpu: 200m

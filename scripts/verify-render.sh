@@ -38,7 +38,10 @@ check "no INSTANA_ env vars"        0 "$(count 'INSTANA_' "$OUT/phase1.yaml")"
 check "no LoadBalancer Service"     0 "$(count 'type: LoadBalancer' "$OUT/phase1.yaml")"
 check "web Service is ClusterIP"    1 "$(count 'type: ClusterIP' "$OUT/phase1.yaml")"
 check "Ingress host"                1 "$(count 'host: robot-shop.local' "$OUT/phase1.yaml")"
-check "readiness probes"            8 "$(count 'readinessProbe' "$OUT/phase1.yaml")"
+# 7, not 8: dispatch is a RabbitMQ consumer with no listener, so a readiness
+# probe cannot pass and was removed (PATCH 8). The 7 remaining probes are the
+# pods that actually serve traffic; redis/mysql/mongodb/load have none upstream.
+check "readiness probes"            7 "$(count 'readinessProbe' "$OUT/phase1.yaml")"
 check "Deployments rendered"       12 "$(count '^kind: Deployment' "$OUT/phase1.yaml")"
 check "load generator present"      1 "$(count '^  name: load$' "$OUT/phase1.yaml")"
 check "redis PVC size"              1 "$(count 'storage: 1Gi' "$OUT/phase1.yaml")"

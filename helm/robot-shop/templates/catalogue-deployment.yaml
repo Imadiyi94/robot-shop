@@ -32,9 +32,12 @@ spec:
         ports:
         - containerPort: 8080
         # PATCH 2: readiness probe (upstream has none).
+        # PATCH 8: upstream's probe path was wrong. This image serves
+        # /health; /catalogue returns 404, so the pod sat Running-but-NotReady
+        # forever. Verified: GET /health -> 200.
         readinessProbe:
           httpGet:
-            path: /catalogue
+            path: /health
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 10

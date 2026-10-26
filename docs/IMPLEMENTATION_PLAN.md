@@ -475,3 +475,110 @@ environment quirk, not a configuration defect — see `terraform/README.md`.
 ServiceMonitors select pods by label and scrape by **named port**. `cart` and
 `payment` already expose `port: http`, so no Service change is needed. The
 `monitoring` namespace and its NetworkPolicy allowance are Phase 2 work.
+
+---
+
+## 11. Step 4 outcome — images, install, Phase 1 live (2026-10-26)
+
+Deliverable 1 is met: 13/13 pods `Running` and `Ready`, the storefront answering
+`200` through the shared ingress-nginx controller, and a 15-client load generator
+driving continuous traffic. Evidence: `docs/phase1-verification.log`.
+
+| Check | Result |
+| --- | --- |
+| Remote | <https://github.com/Imadiyi94/robot-shop> (public, `main`) |
+| Images pulled | 13/13, digests in `docs/IMAGE_PINS.md` |
+| Digest refs on nodes | 13/13 on control-plane, worker, worker2 |
+| Terraform apply | 8 resources (ns, quota, limitrange, 5 netpols) |
+| Helm release | `robot-shop` revision 2, namespace `robot-shop` |
+| Pods | 13 `Running`, 13 `Ready`, **0 restarts** |
+| Digest-pinned containers | 13/13 |
+| `INSTANA_` references | 0 |
+| LoadBalancer Services | 0 |
+| Storefront | `HTTP 200`, `<title>Stan's Robot Shop</title>` |
+| Load generator | 162 GETs per 200 web log lines, all `200` |
+
+### Quota headroom was verified, not assumed
+
+All 13 pods declare explicit resources, so the LimitRange defaults never apply to
+them. Measured from the rendered chart:
+
+| Dimension | Steady state | Worst-case rollout (12 surges) | Quota |
+| --- | --- | --- | --- |
+| `requests.cpu` | 1.30 | 2.50 | 4 |
+| `requests.memory` | 2,056Mi | 4,062Mi | 5Gi |
+| `limits.cpu` | 2.60 | 5.00 | 8 |
+| `limits.memory` | 3,736Mi | 7,372Mi | 8Gi |
+
+The worst case fits with ~800Mi of headroom, so a future upgrade that rolls all
+12 Deployments at once cannot be blocked by quota.
+
+### Four defects found only by running it
+
+None of these were visible in `helm template`, lint, or a server dry run — they
+required pods to actually run.
+
+1. **catalogue probe path was wrong (PATCH 8).** The PATCH 2 probe used
+   `/catalogue`, which this image answers `404` (Express). The pod sat
+   `Running`/`0-1 Ready` forever. The image serves `/health` (`200`), verified
+   with `wget` inside the pod.
+2. **dispatch probe could never pass (PATCH 8).** dispatch is a RabbitMQ consumer
+   (`Rabbit MQ ready true`) that never opens a listener, so `tcpSocket: 8080` was
+   unreachable by construction. The probe is removed; readiness follows container
+   state, as upstream intends.
+3. **mysql has no readiness probe and reports Ready while unusable.** The
+   `rs-mysql-db` entrypoint imports a 16MB gzipped dump into `/data/mysql`
+   (its `datadir` is `/data/mysql`, not `/var/lib/mysql`) using a temporary
+   `--skip-networking` server. For ~25 minutes the pod was `1/1 Ready` while
+   `3306` refused connections, so `ratings` (500 from `/_health`) and `shipping`
+   (Spring boot, datasource retry) stayed unready. Both recovered by themselves
+   once the import completed — no restarts were needed, since they retry per
+   request. **Deliberately deferred:** adding an
+   `exec: mysqladmin ping -h 127.0.0.1` probe would make `helm --wait` honest, but
+   it restarts the pod and re-runs the 25-minute import, so it is a follow-up, not
+   a Phase 1 change.
+4. **`kind load docker-image` fails for some images on Docker 29.** `kind`
+   imports with `ctr images import --all-platforms`; Docker 29's OCI index
+   advertises child manifests absent from the tarball, so containerd aborts with
+   `content digest sha256:... not found`. `redis:4.0.6` and
+   `rabbitmq:3.7-management-alpine` both failed this way. `scripts/import-image.sh`
+   imports with `--platform linux/amd64` and then tags the digest ref;
+   `scripts/load-images.ps1` falls back to it automatically.
+
+### `localhost:30080` is broken on this workstation (not this stack)
+
+`curl -H 'Host: robot-shop.local' http://localhost:30080/` answered `200` once,
+then began hanging with `000`. Diagnosis, in order:
+
+| Probe | Result |
+| --- | --- |
+| In-cluster → controller Service | `200` |
+| Control-plane container → its own NodePort | `200` |
+| Host → `192.168.43.176:30080` (Docker's `0.0.0.0` binding) | `200` |
+| Host → `localhost:30080` | `000` (timeout, `CloseWait` left behind) |
+
+`Get-NetTCPConnection -LocalPort 30080 -State Listen` shows **two** listeners:
+`0.0.0.0` owned by `com.docker.backend`, and `127.0.0.1` owned by a stale
+**`wslrelay`**. The stale relay accepts the localhost connection and drops it,
+so `localhost` is black-holed while every other path to the same controller
+works. This also breaks Capstone 1 (`voting-app.local` on the same port), so it
+predates this work and is not caused by the Ingress or by the new namespace.
+
+`scripts/verify-phase1.sh` therefore probes `localhost`, `127.0.0.1`, and the
+host LAN address in turn, and **reports which one answered** — a real routing
+failure still fails the check, while a broken host port-forward is visible as a
+note rather than a false failure. A `wsl --shutdown` (then restart Docker
+Desktop) should clear the stale relay; it was not run here because it restarts
+the WSL VM that hosts the kind nodes.
+
+### Reproducing
+
+```powershell
+powershell -NoProfile -File scripts/pull-images.ps1    # retries flaky Docker Hub DNS
+powershell -NoProfile -File scripts/load-images.ps1    # load + digest-tag all 3 nodes
+helm upgrade --install robot-shop helm/robot-shop -n robot-shop -f helm/robot-shop/values-phase1.yaml
+bash scripts/verify-phase1.sh | tee docs/phase1-verification.log
+```
+
+Expect a first install to take ~30 minutes wall-clock: ~25 of those are the mysql
+dump import, which gates `ratings` and `shipping` readiness.
