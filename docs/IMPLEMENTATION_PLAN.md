@@ -204,7 +204,7 @@ This also avoids Docker Hub rate limits on 3 nodes.
 ### 4.4 Phase 1 acceptance
 
 ```bash
-kubectl -n robot-shop get pods                  # 14/14 Ready (8 apps + 3 data + load + redis + mysql)
+kubectl -n robot-shop get pods                  # 13/13 Ready (8 app pods + mongodb + mysql + rabbitmq + redis + load)
 curl -H 'Host: robot-shop.local' http://localhost:30080/   # 200 + store HTML
 kubectl -n robot-shop logs deploy/load --tail=20            # continuous requests
 kubectl -n robot-shop get deploy,ds | grep -i instana       # empty
@@ -321,7 +321,7 @@ Evidence saved to `docs/phase2-verification.log`, including:
 | 2 | Scaffold repo, vendor chart, apply patches | `helm lint` / `helm template` |
 | 3 | Terraform namespace module | `terraform validate` + plan shows **0 cluster resources** |
 | 4 | Build/load/pin images | all 13 images present in Kind |
-| 5 | Helm install Phase 1 + loadgen | 14 pods Ready, HTTP 200, load logs |
+| 5 | Helm install Phase 1 + loadgen | 13 pods Ready, HTTP 200, load logs |
 | 6 | Terraform monitoring + observability chart | Prometheus/Grafana Ready |
 | 7 | Dashboards + ServiceMonitors | targets UP, dashboards visible |
 | 8 | Evidence logs + docs | review |
