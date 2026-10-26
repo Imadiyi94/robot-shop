@@ -35,6 +35,7 @@ Every patch is marked with a `PATCH <n>` comment in the file it touches, so
 | **P4** | Synthetic load generator at `loadgen.*`, gated on `loadgen.enabled`. Mirrors upstream `K8s/load-deployment.yaml` including `ERROR=1` so a failed request does not kill the run. | `values.yaml`, `load-deployment.yaml` (new) |
 | **P5** | Chart metadata: `apiVersion: v2` (upstream `v1` is legacy), `version: 1.2.0`, `appVersion: 1.1.0`, `sources:` and an `capstone2/upstream-commit` annotation so the vendor point is machine-readable. | `Chart.yaml` |
 | **P6** | Digest pinning (decision D7). New `robot-shop.image` helper renders `repo/name:tag@sha256:...` when `image.digests[<name>]` is set, and falls back to the plain tag otherwise. `redis` and `rabbitmq` images become configurable (`redis.image`, `rabbitmq.image`) because upstream hard-codes `redis:4.0.6` and `rabbitmq:3.7-management-alpine` in the templates. | `_helpers.tpl` (new), all 11 `rs-*` deployment templates, `redis-statefulset.yaml`, `rabbitmq-deployment.yaml`, `values.yaml` |
+| **P7** | Drop `NET_ADMIN` from mysql by default. Upstream added it "for Istio", but PSA `baseline` rejects any capability outside its default set, so the pod would fail **admission** rather than merely lose a capability. Gated behind `mysql.netAdmin`. | `mysql-deployment.yaml`, `values.yaml` |
 
 ## Deliberately not patched
 

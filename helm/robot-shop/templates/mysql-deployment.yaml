@@ -21,10 +21,15 @@ spec:
       - name: mysql
         image: {{ include "robot-shop.image" (dict "root" $ "name" "rs-mysql-db") }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        # added for Istio
+        # PATCH 7: NET_ADMIN was added upstream "for Istio". It is not needed by
+        # the application, and PSA `baseline` rejects any capability outside its
+        # default set - so this block would fail admission on the target
+        # namespace. Gated, default off.
+        {{- if .Values.mysql.netAdmin }}
         securityContext:
           capabilities:
             add: ["NET_ADMIN"]
+        {{- end }}
         ports:
         - containerPort: 3306
         resources:

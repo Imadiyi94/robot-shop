@@ -93,7 +93,10 @@ dispatch: {}
 
 mongodb: {}
 
-mysql: {}
+mysql:
+  # PATCH 7 - NET_ADMIN was only needed for Istio and is rejected by PSA
+  # `baseline`. Enable only if the namespace runs at a privileged PSA level.
+  netAdmin: false
 
 payment:
   # Alternative payment gateway URL
